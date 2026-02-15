@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Coorg Coffee Plantation</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" tabindex="1"></canvas>
+
+        <!-- UI Overlay -->
+        <div id="ui-overlay">
+            <div id="top-ui">
+                <div id="location-label">Coffee Plantation</div>
+            </div>
+            <div id="controls-hint">WASD/Arrows: Move | E/Space: Interact</div>
+        </div>
+
+        <!-- Mobile Controls -->
+        <div id="mobile-controls" class="hidden">
+            <div id="mobile-dpad">
+                <button class="dpad-btn" id="dpad-up" data-dir="up">▲</button>
+                <div class="dpad-row">
+                    <button class="dpad-btn" id="dpad-left" data-dir="left">◀</button>
+                    <button class="dpad-btn" id="dpad-down" data-dir="down">▼</button>
+                    <button class="dpad-btn" id="dpad-right" data-dir="right">▶</button>
+                </div>
+            </div>
+            <div id="mobile-actions">
+                <button class="action-btn" id="action-interact">A</button>
+                <button class="action-btn secondary" id="action-menu">☰</button>
+            </div>
+        </div>
+
+        <!-- Dialogue Box -->
+        <div id="dialogue-box" class="hidden">
+            <div id="dialogue-speaker"></div>
+            <div id="dialogue-text"></div>
+            <div id="dialogue-prompt">Press E to continue</div>
+        </div>
+
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h1>Coorg Coffee Plantation</h1>
+            <p class="subtitle">A Coffee Estate Simulation</p>
+            <div class="start-instructions">
+                <p>Experience life on a traditional Coorg coffee estate.</p>
+                <p>Grow Arabica and Robusta coffee through the seasons.</p>
+                <p>Manage workers, process beans, and sell to market!</p>
+            </div>
+            <p class="press-start">Press ENTER to Start</p>
+            <div class="controls-info">
+                <p><strong>Controls:</strong></p>
+                <p>WASD or Arrow Keys - Move</p>
+                <p>E or Space - Interact</p>
+            </div>
+        </div>
+
+        <!-- Character Selection Screen -->
+        <div id="character-select-screen" class="hidden">
+            <h1>Create Your Character</h1>
+            <p class="subtitle">Estate Manager</p>
+
+            <div id="character-preview-container">
+                <canvas id="character-preview" width="64" height="80"></canvas>
+            </div>
+
+            <div id="gender-selector">
+                <button class="gender-btn selected" data-gender="male">Boy</button>
+                <button class="gender-btn" data-gender="female">Girl</button>
+            </div>
+
+            <div id="name-input-section">
+                <label for="player-name">Your Name:</label>
+                <input type="text" id="player-name" maxlength="12" placeholder="Manager">
+            </div>
+
+            <p class="press-start">Press ENTER to Begin</p>
+        </div>
+
+        <!-- Plantation HUD -->
+        <div id="plantation-hud" class="hidden">
+            <div id="plantation-top-bar">
+                <div id="date-display">
+                    <span id="day-phase">Morning</span>
+                    <span id="calendar-date">Nov 1, 2024</span>
+                    <span id="season-name">Harvest Season</span>
+                </div>
+                <div id="resource-bar">
+                    <div class="resource" id="plant-money-display">₹50,000</div>
+                    <div class="resource" id="water-display">3000L</div>
+                    <div class="resource" id="power-display">Grid OK</div>
+                    <div class="resource" id="workers-display">0 Workers</div>
+                </div>
+                <button id="dashboard-button" onclick="openDashboard()">Dashboard</button>
+                <button id="advance-time-button" onclick="advanceTime()">End Phase</button>
+            </div>
+            <div id="inventory-quickview">
+                <span id="cherries-count">Cherries: 0kg</span>
+                <span id="beans-count">Beans: 0kg</span>
+            </div>
+        </div>
+
+        <!-- Plantation Dashboard Modal -->
+        <div id="plantation-dashboard" class="hidden">
+            <div id="dashboard-content">
+                <h1>Estate Dashboard</h1>
+                <div id="dashboard-tabs">
+                    <button class="dash-tab active" data-tab="overview">Overview</button>
+                    <button class="dash-tab" data-tab="plants">Plants</button>
+                    <button class="dash-tab" data-tab="workers">Workers</button>
+                    <button class="dash-tab" data-tab="inventory">Inventory</button>
+                    <button class="dash-tab" data-tab="market">Market</button>
+                </div>
+                <div id="tab-content">
+                    <!-- Dynamically populated -->
+                </div>
+                <button id="close-dashboard" onclick="closeDashboard()">Close</button>
+            </div>
+        </div>
+
+        <!-- Plantation Event Modal -->
+        <div id="plantation-event" class="hidden">
+            <div id="event-content">
+                <h2 id="event-title">Event</h2>
+                <p id="event-description"></p>
+                <div id="event-options">
+                    <!-- Dynamically generated buttons -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Worker Hiring Modal -->
+        <div id="hiring-modal" class="hidden">
+            <div id="hiring-content">
+                <h2>Hire Workers</h2>
+                <p id="hiring-info">Available workers for hire:</p>
+                <div id="available-workers">
+                    <!-- Dynamically populated -->
+                </div>
+                <div id="hiring-summary">
+                    <p>Current Workers: <span id="current-worker-count">0</span>/<span id="max-worker-count">10</span></p>
+                    <p>Weekly Wage Bill: ₹<span id="weekly-wage-bill">0</span></p>
+                </div>
+                <div id="hiring-buttons">
+                    <button id="close-hiring-btn">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Worker Management Modal -->
+        <div id="worker-manage-modal" class="hidden">
+            <div id="worker-manage-content">
+                <h2>Manage Workers</h2>
+                <div id="worker-list">
+                    <!-- Dynamically populated -->
+                </div>
+                <div id="worker-manage-buttons">
+                    <button id="close-worker-manage-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sell Coffee Modal -->
+        <div id="sell-modal" class="hidden">
+            <div id="sell-modal-content">
+                <h2>Sell Coffee Beans</h2>
+                <div id="sell-prices">
+                    <h3>Current Prices</h3>
+                    <div id="sell-price-grid"></div>
+                </div>
+                <div id="sell-inventory">
+                    <h3>Your Stock</h3>
+                    <div id="sell-stock-grid"></div>
+                </div>
+                <div id="sell-selection">
+                    <h3>Select What to Sell</h3>
+                    <div class="sell-type-selector">
+                        <label>Coffee Type:</label>
+                        <select id="sell-coffee-type" onchange="updateSellGrades()">
+                            <option value="arabica">Arabica</option>
+                            <option value="robusta">Robusta</option>
+                        </select>
+                    </div>
+                    <div class="sell-grade-selector">
+                        <label>Grade:</label>
+                        <select id="sell-grade">
+                            <option value="MNEB">MNEB (Premium)</option>
+                            <option value="A">Grade A</option>
+                            <option value="B">Grade B</option>
+                            <option value="C">Grade C</option>
+                        </select>
+                    </div>
+                    <div class="sell-quantity-input">
+                        <label>Quantity (kg):</label>
+                        <input type="number" id="sell-quantity" min="0.1" step="0.1" value="1" oninput="updateSellTotal()">
+                        <button class="sell-max-btn" onclick="setSellMax()">Max</button>
+                    </div>
+                    <div id="sell-available">Available: <span id="sell-available-amount">0</span> kg</div>
+                </div>
+                <div id="sell-summary">
+                    <p>Price per kg: <span id="sell-price-per-kg">₹0</span></p>
+                    <p class="sell-total">Total: <span id="sell-total-amount">₹0</span></p>
+                </div>
+                <div id="sell-buttons">
+                    <button id="sell-confirm-btn" onclick="confirmSell()">Sell</button>
+                    <button id="sell-all-btn" onclick="sellAllBeans()">Sell All Stock</button>
+                    <button id="sell-cancel-btn" onclick="closeSellModal()">Cancel</button>
+                </div>
+                <p id="sell-feedback"></p>
+            </div>
+        </div>
+
+        <!-- Cherry Picking Mini-Game -->
+        <div id="picking-game" class="hidden">
+            <div id="picking-header">
+                <span id="picking-timer">60s</span>
+                <span id="picking-score">Score: 0</span>
+            </div>
+            <canvas id="picking-canvas" width="512" height="512"></canvas>
+            <div id="picking-legend">
+                <span class="cherry-red">Red = Ripe (+10)</span>
+                <span class="cherry-green">Green = Unripe (-5)</span>
+                <span class="cherry-dark">Dark = Overripe (+3)</span>
+            </div>
+            <p id="picking-instructions">Click ripe cherries to pick them!</p>
+        </div>
+
+        <!-- Bean Sorting Mini-Game -->
+        <div id="sorting-game" class="hidden">
+            <h2>Sort the Beans</h2>
+            <canvas id="sorting-canvas" width="800" height="300"></canvas>
+            <div id="sorting-bins">
+                <div class="sort-bin" data-grade="MNEB">MNEB</div>
+                <div class="sort-bin" data-grade="A">Grade A</div>
+                <div class="sort-bin" data-grade="B">Grade B</div>
+                <div class="sort-bin" data-grade="C">Grade C</div>
+                <div class="sort-bin reject" data-grade="reject">Reject</div>
+            </div>
+            <div id="sorting-stats">
+                <span>Accuracy: <span id="sort-accuracy">100%</span></span>
+                <span>Sorted: <span id="sorted-count">0</span></span>
+            </div>
+            <p id="sorting-instructions">Press 1-4 to sort into grades, R for reject</p>
+        </div>
+
+        <!-- Processing Mini-Game -->
+        <div id="processing-game" class="hidden">
+            <h2 id="processing-title">Processing</h2>
+            <p id="processing-stage">Stage: Pulping</p>
+            <div id="processing-progress-container">
+                <div id="processing-progress-bar"></div>
+            </div>
+            <div id="fermentation-timer" class="hidden">
+                <p>Fermentation Time: <span id="ferm-hours">0</span> hours</p>
+                <p id="ferm-hint">Optimal: 36-48 hours</p>
+                <button id="check-ferment-btn">Check & Advance</button>
+            </div>
+            <p id="processing-instructions"></p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
