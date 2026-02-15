@@ -6,6 +6,8 @@
 
 Grow, harvest, and process coffee through the seasons — from seedling to cup.
 
+![Bloom - Coffee Estate](images/estate.png)
+
 ## Features
 
 ### Coffee Cultivation
