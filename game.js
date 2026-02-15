@@ -13084,4 +13084,423 @@ window.addEventListener('orientationchange', () => {
 // Also resize on window resize
 window.addEventListener('resize', resizeCanvasForMobile);
 
+// =============================================
+// REINFORCEMENT LEARNING DATA COLLECTION SYSTEM
+// =============================================
+
+const rlSystem = {
+    enabled: false,
+    recording: false,
+    currentEpisode: 0,
+    currentStep: 0,
+    trajectory: [],
+    episodes: [],
+    lastState: null,
+    lastAction: null,
+    episodeReward: 0,
+
+    // Action space enumeration
+    ACTIONS: {
+        // Movement
+        MOVE_UP: 0,
+        MOVE_DOWN: 1,
+        MOVE_LEFT: 2,
+        MOVE_RIGHT: 3,
+        // Interactions
+        INTERACT: 4,
+        OPEN_DASHBOARD: 5,
+        CLOSE_DASHBOARD: 6,
+        ADVANCE_TIME: 7,
+        // Worker management
+        HIRE_WORKER: 8,
+        FIRE_WORKER: 9,
+        ASSIGN_WORKER: 10,
+        // Market actions
+        SELL_COFFEE: 11,
+        BUY_SUPPLIES: 12,
+        // Mini-game actions
+        PICK_CHERRY: 13,
+        SORT_BEAN: 14,
+        PROCESS_TAP: 15,
+        // Meta
+        NO_OP: 16
+    },
+
+    // Reverse mapping for logging
+    ACTION_NAMES: {},
+
+    // Initialize the RL system
+    init() {
+        // Build reverse action mapping
+        for (const [name, id] of Object.entries(this.ACTIONS)) {
+            this.ACTION_NAMES[id] = name;
+        }
+        console.log('RL Data Collection System initialized');
+        console.log('Actions:', Object.keys(this.ACTIONS).length);
+    },
+
+    // Start a new episode
+    startEpisode() {
+        this.currentEpisode++;
+        this.currentStep = 0;
+        this.trajectory = [];
+        this.episodeReward = 0;
+        this.lastState = this.getState();
+        this.recording = true;
+        console.log(`Episode ${this.currentEpisode} started`);
+    },
+
+    // End current episode
+    endEpisode(terminalReason = 'manual') {
+        if (!this.recording) return;
+
+        const episodeData = {
+            episode: this.currentEpisode,
+            steps: this.currentStep,
+            totalReward: this.episodeReward,
+            terminalReason: terminalReason,
+            trajectory: [...this.trajectory],
+            timestamp: new Date().toISOString()
+        };
+
+        this.episodes.push(episodeData);
+        this.recording = false;
+
+        console.log(`Episode ${this.currentEpisode} ended: ${this.currentStep} steps, reward: ${this.episodeReward.toFixed(2)}`);
+        return episodeData;
+    },
+
+    // Get current game state as a serializable object
+    getState() {
+        const allPlants = [...plantation.plants.arabica, ...plantation.plants.robusta];
+
+        return {
+            // Time features
+            day: plantation.calendar.day,
+            month: plantation.calendar.month,
+            year: plantation.calendar.year,
+            season: plantation.calendar.season,
+            dayPhase: plantation.calendar.dayPhase,
+            seasonIndex: ['POST_HARVEST', 'BLOSSOM', 'PLANTING', 'MONSOON', 'RIPENING', 'HARVEST'].indexOf(plantation.calendar.season),
+            phaseIndex: ['MORNING', 'AFTERNOON', 'EVENING'].indexOf(plantation.calendar.dayPhase),
+
+            // Resources
+            money: plantationResources.money,
+            water: plantationResources.water.stored,
+            waterCapacity: plantationResources.water.tankCapacity,
+            waterRatio: plantationResources.water.stored / plantationResources.water.tankCapacity,
+            powerAvailable: plantationResources.power.gridAvailable ? 1 : 0,
+            generatorFuel: plantationResources.power.generatorFuel,
+
+            // Workers
+            workerCount: plantation.workers.length,
+            maxWorkers: plantation.maxWorkers,
+            workerRatio: plantation.workers.length / plantation.maxWorkers,
+            avgWorkerMorale: plantation.workers.length > 0 ?
+                plantation.workers.reduce((sum, w) => sum + w.morale, 0) / plantation.workers.length : 0,
+            avgWorkerEnergy: plantation.workers.length > 0 ?
+                plantation.workers.reduce((sum, w) => sum + w.energy, 0) / plantation.workers.length : 0,
+
+            // Plants summary
+            totalPlants: allPlants.length,
+            avgPlantHealth: allPlants.length > 0 ?
+                allPlants.reduce((sum, p) => sum + p.health, 0) / allPlants.length : 0,
+            avgWaterLevel: allPlants.length > 0 ?
+                allPlants.reduce((sum, p) => sum + p.waterLevel, 0) / allPlants.length : 0,
+            plantsWithPests: allPlants.filter(p => p.hasPest).length,
+            diseasedPlants: allPlants.filter(p => p.stage === 'DISEASED').length,
+
+            // Plant stages count
+            seedlings: allPlants.filter(p => p.stage === 'SEEDLING').length,
+            youngPlants: allPlants.filter(p => p.stage === 'YOUNG').length,
+            maturePlants: allPlants.filter(p => p.stage === 'MATURE').length,
+            floweringPlants: allPlants.filter(p => p.stage === 'FLOWERING').length,
+            greenBerryPlants: allPlants.filter(p => p.stage === 'GREEN_BERRY').length,
+            ripePlants: allPlants.filter(p => p.stage === 'RIPE').length,
+
+            // Inventory
+            cherriesArabica: plantationResources.inventory.cherries.arabica,
+            cherriesRobusta: plantationResources.inventory.cherries.robusta,
+            parchmentArabica: plantationResources.inventory.parchment.arabica,
+            parchmentRobusta: plantationResources.inventory.parchment.robusta,
+            greenBeansTotal: Object.values(plantationResources.inventory.greenBeans.arabica).reduce((a, b) => a + b, 0) +
+                            Object.values(plantationResources.inventory.greenBeans.robusta).reduce((a, b) => a + b, 0),
+
+            // Supplies
+            fertilizer: plantationResources.supplies?.fertilizer || 0,
+            pesticide: plantationResources.supplies?.pesticide || 0,
+            seedlings: plantationResources.supplies?.seedlings || 0,
+
+            // Player position (normalized)
+            playerX: player.x / (40 * TILE_SIZE),
+            playerY: player.y / (30 * TILE_SIZE),
+
+            // Game state
+            gameState: gameState
+        };
+    },
+
+    // Get flattened state as array (for neural network input)
+    getStateVector() {
+        const state = this.getState();
+        return [
+            // Time (normalized)
+            state.day / 31,
+            state.month / 12,
+            state.seasonIndex / 5,
+            state.phaseIndex / 2,
+            // Resources (normalized)
+            Math.min(state.money / 500000, 1),
+            state.waterRatio,
+            state.powerAvailable,
+            state.generatorFuel / 100,
+            // Workers
+            state.workerRatio,
+            state.avgWorkerMorale / 100,
+            state.avgWorkerEnergy / 100,
+            // Plants
+            state.avgPlantHealth / 100,
+            state.avgWaterLevel / 100,
+            state.plantsWithPests / Math.max(state.totalPlants, 1),
+            state.diseasedPlants / Math.max(state.totalPlants, 1),
+            // Plant stages (normalized)
+            state.ripePlants / Math.max(state.totalPlants, 1),
+            state.floweringPlants / Math.max(state.totalPlants, 1),
+            state.maturePlants / Math.max(state.totalPlants, 1),
+            // Inventory (normalized, capped)
+            Math.min((state.cherriesArabica + state.cherriesRobusta) / 100, 1),
+            Math.min(state.greenBeansTotal / 100, 1),
+            // Position
+            state.playerX,
+            state.playerY
+        ];
+    },
+
+    // Calculate reward for current step
+    calculateReward(prevState, currentState, action) {
+        let reward = 0;
+
+        // Money gained/lost (primary reward)
+        const moneyDelta = currentState.money - prevState.money;
+        reward += moneyDelta / 1000;  // Scale down
+
+        // Plant health maintained
+        const healthDelta = currentState.avgPlantHealth - prevState.avgPlantHealth;
+        reward += healthDelta * 0.1;
+
+        // Harvest progress (ripe plants)
+        const ripeDelta = currentState.ripePlants - prevState.ripePlants;
+        reward += ripeDelta * 0.5;
+
+        // Penalties
+        // Lost plants to disease
+        const diseaseDelta = currentState.diseasedPlants - prevState.diseasedPlants;
+        reward -= diseaseDelta * 2;
+
+        // Running out of water
+        if (currentState.waterRatio < 0.1 && prevState.waterRatio >= 0.1) {
+            reward -= 5;
+        }
+
+        // Running out of money
+        if (currentState.money < 1000 && prevState.money >= 1000) {
+            reward -= 10;
+        }
+
+        // Small time penalty to encourage efficiency
+        reward -= 0.01;
+
+        return reward;
+    },
+
+    // Log an action
+    logAction(actionId, metadata = {}) {
+        if (!this.recording || !this.enabled) return;
+
+        const currentState = this.getState();
+        const stateVector = this.getStateVector();
+        const reward = this.lastState ? this.calculateReward(this.lastState, currentState, actionId) : 0;
+
+        const transition = {
+            step: this.currentStep,
+            timestamp: Date.now(),
+            state: stateVector,
+            stateFull: currentState,
+            action: actionId,
+            actionName: this.ACTION_NAMES[actionId],
+            reward: reward,
+            metadata: metadata
+        };
+
+        this.trajectory.push(transition);
+        this.episodeReward += reward;
+        this.currentStep++;
+        this.lastState = currentState;
+
+        return transition;
+    },
+
+    // Check for terminal conditions
+    checkTerminal() {
+        const state = this.getState();
+
+        // Bankruptcy
+        if (state.money <= 0) {
+            return { terminal: true, reason: 'bankruptcy' };
+        }
+
+        // All plants dead
+        if (state.totalPlants > 0 && state.diseasedPlants === state.totalPlants) {
+            return { terminal: true, reason: 'all_plants_dead' };
+        }
+
+        // Year completed (success condition)
+        if (state.month === 12 && state.day === 31) {
+            return { terminal: true, reason: 'year_complete' };
+        }
+
+        return { terminal: false, reason: null };
+    },
+
+    // Export all collected data
+    exportData() {
+        const data = {
+            version: '1.0',
+            gameVersion: 'bloom',
+            exportTime: new Date().toISOString(),
+            totalEpisodes: this.episodes.length,
+            actionSpace: this.ACTIONS,
+            stateFeatures: [
+                'day_norm', 'month_norm', 'season_idx', 'phase_idx',
+                'money_norm', 'water_ratio', 'power_avail', 'fuel_norm',
+                'worker_ratio', 'worker_morale', 'worker_energy',
+                'plant_health', 'plant_water', 'pest_ratio', 'disease_ratio',
+                'ripe_ratio', 'flowering_ratio', 'mature_ratio',
+                'cherries_norm', 'beans_norm',
+                'player_x', 'player_y'
+            ],
+            episodes: this.episodes
+        };
+
+        return JSON.stringify(data, null, 2);
+    },
+
+    // Download data as JSON file
+    downloadData() {
+        const data = this.exportData();
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bloom_rl_data_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log(`Downloaded ${this.episodes.length} episodes`);
+    },
+
+    // Get statistics
+    getStats() {
+        if (this.episodes.length === 0) return null;
+
+        const rewards = this.episodes.map(e => e.totalReward);
+        const steps = this.episodes.map(e => e.steps);
+
+        return {
+            episodes: this.episodes.length,
+            avgReward: rewards.reduce((a, b) => a + b, 0) / rewards.length,
+            maxReward: Math.max(...rewards),
+            minReward: Math.min(...rewards),
+            avgSteps: steps.reduce((a, b) => a + b, 0) / steps.length,
+            totalTransitions: this.episodes.reduce((sum, e) => sum + e.trajectory.length, 0)
+        };
+    },
+
+    // Toggle recording
+    toggle() {
+        this.enabled = !this.enabled;
+        if (this.enabled) {
+            this.startEpisode();
+        } else if (this.recording) {
+            this.endEpisode('toggled_off');
+        }
+        console.log(`RL recording: ${this.enabled ? 'ON' : 'OFF'}`);
+        return this.enabled;
+    }
+};
+
+// Initialize RL system
+rlSystem.init();
+
+// Hook into game actions for automatic logging
+const originalAdvanceTime = advanceTime;
+advanceTime = function() {
+    originalAdvanceTime();
+    if (rlSystem.enabled) {
+        rlSystem.logAction(rlSystem.ACTIONS.ADVANCE_TIME);
+
+        // Check for terminal conditions
+        const terminal = rlSystem.checkTerminal();
+        if (terminal.terminal) {
+            rlSystem.endEpisode(terminal.reason);
+            rlSystem.startEpisode();  // Auto-start new episode
+        }
+    }
+};
+
+// Hook into sell functions
+const originalConfirmSell = confirmSell;
+confirmSell = function() {
+    originalConfirmSell();
+    if (rlSystem.enabled) {
+        rlSystem.logAction(rlSystem.ACTIONS.SELL_COFFEE);
+    }
+};
+
+// Hook into hire function
+const originalHireWorker = hireWorker;
+hireWorker = function(poolIndex) {
+    originalHireWorker(poolIndex);
+    if (rlSystem.enabled) {
+        rlSystem.logAction(rlSystem.ACTIONS.HIRE_WORKER, { poolIndex });
+    }
+};
+
+// Keyboard shortcut for RL controls
+document.addEventListener('keydown', (e) => {
+    // Ctrl+R to toggle recording
+    if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        const enabled = rlSystem.toggle();
+        showDialogue('RL Recording', [enabled ? 'Recording STARTED' : 'Recording STOPPED']);
+    }
+    // Ctrl+D to download data
+    if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        if (rlSystem.episodes.length > 0) {
+            rlSystem.downloadData();
+        } else {
+            showDialogue('RL Data', ['No episodes recorded yet']);
+        }
+    }
+    // Ctrl+S to show stats
+    if (e.ctrlKey && e.key === 'i') {
+        e.preventDefault();
+        const stats = rlSystem.getStats();
+        if (stats) {
+            showDialogue('RL Statistics', [
+                `Episodes: ${stats.episodes}`,
+                `Avg Reward: ${stats.avgReward.toFixed(2)}`,
+                `Total Transitions: ${stats.totalTransitions}`
+            ]);
+        } else {
+            showDialogue('RL Statistics', ['No data collected yet']);
+        }
+    }
+});
+
+// Expose RL system globally for external access
+window.rlSystem = rlSystem;
+
 init();
