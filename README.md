@@ -1,6 +1,10 @@
-# Coorg Coffee Plantation
+# Bloom
 
-A coffee estate management simulation game set in the Western Ghats of Karnataka, India. Learn the art of coffee cultivation from seedling to cup!
+*A coffee estate simulation set in the misty hills of Coorg, India.*
+
+> In the Western Ghats, where mist clings to the hills and coffee blossoms paint the slopes white, you inherit an estate. Bloom is a meditation on seasons, soil, and the slow magic of cultivation.
+
+Grow, harvest, and process coffee through the seasons — from seedling to cup.
 
 ## Features
 
